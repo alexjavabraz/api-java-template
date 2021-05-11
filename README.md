@@ -1,45 +1,176 @@
-**Edit a file, create a new file, and clone from Bitbucket in under 2 minutes**
+########################################################################
+# Financial Operations API
+## API Web para transações financeiras 
+Esta API serve para criação e integração de operações financeiras
+Este projeto é um dos componentes que fazem parte do projeto Financial.
+> Você pode obter mais informações sobre o projeto  **Financial** , seus componentes e motivação [aqui](https://bitbucket.org/bjbraz_financial/transactions_api/src/master/).
 
-When you're done, you can delete the content in this README and update the file with details for others getting started with your repository.
+## Tecnologias
+- Kotlin 1.3.50
+- Spring Boot 2.2.1.RELEASE
+- WebFlux
+- DynamoDB
 
-*We recommend that you open this README in another tab as you perform the tasks below. You can [watch our video](https://youtu.be/0ocf7u76WSo) for a full demo of all the steps in this tutorial. Open the video in a new tab to avoid leaving Bitbucket.*
+## Requisitos dev
+- Eclipse ou Intellij IDEA
+- JDK 1.8
 
----
+## Criando uma nova Branch
+- Na pasta raiz, sempre que for criar uma nova feature
+```bash
+git checkout -b feature/featureName develop
+```
+-- Close Branchs after merge with develop
 
-## Edit a file
 
-You’ll start by editing this README file to learn how to edit a file in Bitbucket.
+## Variáveis de ambiente necessárias
 
-1. Click **Source** on the left side.
-2. Click the README.md link from the list of files.
-3. Click the **Edit** button.
-4. Delete the following text: *Delete this line to make a change to the README from Bitbucket.*
-5. After making your change, click **Commit** and then **Commit** again in the dialog. The commit page will open and you’ll see the change you just made.
-6. Go back to the **Source** page.
+- AWS_REGION (Região da AWS utilizada)
+- AWS_ACCESS_KEY_ID (Acesso aos serviços da AWS)
+- AWS_SECRET_ACCESS_KEY (Acesso aos serviços da AWS)
 
----
+## Como usar (dev)
 
-## Create a file
+- Na pasta raiz, executar:
 
-Next, you’ll add a new file to this repository.
+```bash
+docker-compose up --build
+```
 
-1. Click the **New file** button at the top of the **Source** page.
-2. Give the file a filename of **contributors.txt**.
-3. Enter your name in the empty file space.
-4. Click **Commit** and then **Commit** again in the dialog.
-5. Go back to the **Source** page.
+## Endpoints ativos
+- [PUT] /accounts
+- [PATCH] /accounts
+- /accounts
+- /actuator/health
+- /card/{cardId}
 
-Before you move on, go ahead and explore the repository. You've already seen the **Source** page, but check out the **Commits**, **Branches**, and **Settings** pages.
+## Variaveis de ambiente
 
----
+- Garanta que as variáveis de ambientes da AWS estejam devidamentes atribuídas
 
-## Clone a repository
+```bash
+export AWS_REGION=
+export AWS_ACCESS_KEY_ID=
+export AWS_SECRET_ACCESS_KEY=
+```
 
-Use these steps to clone from SourceTree, our client for using the repository command-line free. Cloning allows you to work on your files locally. If you don't yet have SourceTree, [download and install first](https://www.sourcetreeapp.com/). If you prefer to clone from the command line, see [Clone a repository](https://confluence.atlassian.com/x/4whODQ).
+## Construir imagem docker e subir no registry
 
-1. You’ll see the clone button under the **Source** heading. Click that button.
-2. Now click **Check out in SourceTree**. You may need to create a SourceTree account or log in.
-3. When you see the **Clone New** dialog in SourceTree, update the destination path and name if you’d like to and then click **Clone**.
-4. Open the directory you just created to see your repository’s files.
+- Na pasta raiz, executar:
 
-Now that you're more familiar with your Bitbucket repository, go ahead and add a new file locally. You can [push your change back to Bitbucket with SourceTree](https://confluence.atlassian.com/x/iqyBMg), or you can [add, commit,](https://confluence.atlassian.com/x/8QhODQ) and [push from the command line](https://confluence.atlassian.com/x/NQ0zDQ).
+```bash
+docker build --network=host --build-arg aws_region= --build-arg aws_access_key_id= --build-arg aws_secret_access_key= -t alexjavabraz/bjbraz:<version> .
+docker push alexjavabraz/bjbraz:<version>
+```
+
+## Modelo de Dados
+Este projeto utilizará inicialmente a base de dados Dynamo DB, considerando o seguinte modelo de dados:
+
+|INDICE_PK       |INDICE_SK|ACCOUNT_ID|CARD_ID|CONTRACT_ID|EXTERNAL_CODE|MAIN_ACCOUNT_ID|
+|----------------|---------|----------|----------|----------|----------|----------|
+|card_id|`"529960"`|1272|529960|486|`"xyz"`|846|
+|card_id|`"529963"`|1281|529963|474|`"abc"`|780|
+|external_code|`"abc"`|1281|529963|474|`"abc"`|780|
+|external_code|`"xyz"`|1272|529960|486|`"xyz"`|846|
+
+## UML diagrams
+
+Este é o fluxo básico de atendimento das requisições pelo cards_information_api [transactions_api](https://bitbucket.org/bjbraz_financial/transactions_api/src/master/). Seguem as integrações da API de transações:
+
+```mermaid
+sequenceDiagram
+Translator->> CardsInfoAPI: search by CARD_ID
+CardsInfoAPI-->>Dynamo DB: QUERY DATABASE
+Dynamo DB--x CardsInfoAPI: RESULTSET
+CardsInfoAPI-x Translator: JSON
+Translator->> CardsInfoAPI: search by EXTERNAL_CODE
+CardsInfoAPI-->>Dynamo DB: QUERY DATABASE
+Dynamo DB--x CardsInfoAPI: NOT FOUND
+Note right of Dynamo DB: Caso não exista<br/> no DynamoDB<br/>, então efetuamos a <br/>consulta na base <br/>dados<br/>SQL SERVER.
+CardsInfoAPI-x Cards Consumer: FALLBACK
+Cards Consumer-->>SQL DB: QUERY DATABASE
+SQL DB--x Cards Consumer: RESULTSET
+Cards Consumer->> CardsInfoAPI: RESULTSET
+CardsInfoAPI-x Translator: JSON
+
+```
+
+```mermaid
+graph LR  
+A[Desnormalizr API] -- Fallback --> B((Consumer))  
+A --> C(DynamoDB)  
+B --> D{MainAccount}  
+C --> D
+```
+
+
+## Como gerar os testes e o html de cobertura
+
+- Na pasta raiz, executar:
+
+```bash
+./mvnw verify
+```
+
+- Abrir o arquivo target/site/jacoco/index.html
+
+## Como rodar a aplicação em modo DEV
+- Na pasta raiz, executar com profile LOCAL:
+```bash
+mvn spring-boot:run -Dspring-boot.run.profiles=local -Dspring-boot.run.jvmArguments="-Xdebug -Xrunjdwp:transport=dt_socket,server=y,suspend=n,address=5005"
+```
+
+## Como consultar a versão atual da aplicação:
+- Esta é a URL configurada para exibir a atual versão da aplicação:
+```bash
+http://localhost:8080/
+```
+
+## Acessar o swagger
+
+```bash
+http://localhost:8080/swagger-ui.html
+```
+
+## Como acessar o HealthCheck
+- Esta é a URL configurada para o Actuator Healthcheck:
+```bash
+http://localhost:8080/actuator/health
+```
+
+## Como gerar os artefatos do sonarqube
+- Na pasta raiz, executar (se atentar para variáveis de ambiente):
+```bash
+mvn clean test verify sonar:sonar \
+-Dsonar.projectKey={APP_NAME} \
+-Dsonar.host.url=http://sonar.hubfintech.com.br \
+-Dsonar.java.codeCoveragePlugin=jacoco \
+-Dsonar.jacoco.reportPath=.\\target\\coverage-reports\\jacoco-ut.exec \
+-Dsonar.dynamicAnalysis=reuseReports \
+-Dsonar.sourceEncoding=UTF-8 \
+-Dsonar.sources=.\\src\\main\\java \
+-Dsonar.tests=.\\src\\test\\java \
+-Dsonar.java.binaries=.\\target\\classes \
+-Dsonar.language=java \
+-Dsonar.projectBaseDir=. \
+-Dsonar.surefire.reportsPath=.\\target\\surefire-reports \
+-Dsonar.login={APP_ID}
+```
+
+## Configuração MYSQL 8+ para amiente de desenvolvimento
+```bash
+mysql -u root -p
+CREATE USER 'newuser'@'localhost' IDENTIFIED BY 'user_password';
+CREATE USER 'newuser'@'%' IDENTIFIED BY 'user_password';
+CREATE DATABASE financial;
+GRANT ALL PRIVILEGES ON financial.* to 'newuser'@'%';
+ALTER USER 'newuser'@'%' IDENTIFIED WITH mysql_native_password BY 'user_password';
+FLUSH PRIVILEGES;
+```
+
+## Demais variáveis de ambiente
+
+- ACCOUNT_INFO_CONSUMER_URL (URL base do Card Information Consumer; padrão em QA: `http://172.22.121.153:4013`)
+- CARD_KEYS_TABLE_NAME (Tabela do DynamoDB para consulta de dados-chave ligados ao cartão; padrão: `cards_keys`)
+- CARD_KEYS_PK_SK_INDEX (Nome do índice do DynamoDB para consulta da tabela acima via *partition_key* e *sort_key*; padrão: `indice_pk-indice_sk-index`)
+- LOGGING_LEVEL (Nível de log da aplicação; padrão: `INFO`)
